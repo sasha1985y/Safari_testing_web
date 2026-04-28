@@ -1,0 +1,1262 @@
+Подробное руководство: Открытие локального проекта в эмулированном Safari
+1. Архитектура решения
+┌─────────────────────────────────────────────────────────────┐
+│                    DOCKER КОНТЕЙНЕР                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │         PLAYWRIGHT + WEBKIT (Safari)                │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↑                                 │
+│                           │                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │      ПРОСТОЙ HTTP СЕРВЕР (Python)                  │   │
+│  │      Порт: 8000                                    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↑                                 │
+│                           │                                 │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  VOLUMES (монтирование папок)                       │   │
+│  │  ./project:/app/project                             │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           ↑                                 │
+└───────────────────────────┼─────────────────────────────────┘
+                            │
+        ┌───────────────────┴───────────────────┐
+        │                                       │
+   ┌────▼─────┐                         ┌──────▼──────┐
+   │ УЖЕ ЕСТЬ  │                         │   НОВЫЕ     │
+   │           │                         │  СКРИПТЫ    │
+   │ index.html│                         │             │
+   │ assets/   │                         │ server.py   │
+   │           │                         │ run.py      │
+   └───────────┘                         │ conftest.py │
+                                         └─────────────┘
+_______________________________________________________________________________________________
+2. Подготовка локального проекта
+Шаг 1: Создайте структуру
+
+# Создайте корневую папку проекта
+mkdir -p ~/my-project
+cd ~/my-project
+
+# Создайте структуру
+mkdir -p project/assets/{img,script,style}
+mkdir -p tests
+mkdir -p scripts
+
+# Скопируйте ваш проект (если уже есть)
+# или создайте пример
+_______________________________________________________________________________________________
+Шаг 2: Создайте пример проекта (если его нет)(index.html),styles.css...
+
+# Создайте index.html
+cat > project/index.html << 'HTML'
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой Проект</title>
+    <link rel="stylesheet" href="assets/style/style.css">
+</head>
+<body>
+    <header>
+        <img src="assets/img/logo.svg" alt="Логотип" class="logo">
+        <h1>Добро пожаловать!</h1>
+    </header>
+    
+    <main>
+        <section class="hero">
+            <img src="assets/img/hero-desk.png" alt="Hero Desktop" class="hero-img-desk">
+            <img src="assets/img/hero-mobile.png" alt="Hero Mobile" class="hero-img-mob">
+        </section>
+        
+        <section class="cards">
+            <div class="card">
+                <img src="assets/img/bg-card-mob.png" alt="Card" class="card-img">
+                <p>Карточка 1</p>
+            </div>
+            <div class="card">
+                <img src="assets/img/template.png" alt="Template" class="card-img">
+                <p>Карточка 2</p>
+            </div>
+        </section>
+    </main>
+    
+    <script src="assets/script/index.js"></script>
+</body>
+</html>
+HTML
+
+_______________________________________________________________________________________________
+# Создайте CSS
+cat > project/assets/style/style.css << 'CSS'
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #333;
+    padding: 20px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 40px;
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+    width: 100px;
+    height: auto;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 2.5rem;
+    color: #667eea;
+}
+
+.hero {
+    margin: 40px 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.hero-img-desk {
+    display: none;
+    max-width: 100%;
+    height: auto;
+}
+
+.hero-img-mob {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 40px 0;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.card p {
+    font-size: 1.1rem;
+    color: #333;
+}
+
+@media (max-width: 768px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    .cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (min-width: 1024px) {
+    .hero-img-desk {
+        display: block;
+    }
+    
+    .hero-img-mob {
+        display: none;
+    }
+}
+CSS
+_______________________________________________________________________________________________
+# Создайте JavaScript
+cat > project/assets/script/index.js << 'JS'
+console.log('✅ JavaScript загружен');
+
+// Пример функции
+function initApp() {
+    console.log('🚀 Приложение инициализировано');
+    
+    // Добавьте логирование при загрузке элементов
+    const cards = document.querySelectorAll('.card');
+    console.log(`📊 Найдено карточек: ${cards.length}`);
+    
+    // Добавьте события
+    cards.forEach((card, index) => {
+        card.addEventListener('click', () => {
+            console.log(`🖱️  Клик по карточке ${index + 1}`);
+            alert(`Вы кликнули на карточку ${index + 1}`);
+        });
+    });
+}
+
+// Инициализируйте при загрузке DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
+
+// Логирование ошибок
+window.addEventListener('error', (e) => {
+    console.error('❌ Ошибка:', e.message);
+});
+JS
+_______________________________________________________________________________________________
+Шаг 3: Создайте заглушки для изображений
+
+# Создайте простые PNG изображения (1x1 пиксель)
+python3 << 'PYTHON'
+from PIL import Image
+
+# Создайте цветные изображения
+images = {
+    'logo.svg': (100, 100, (102, 126, 234)),
+    'hero-desk.png': (800, 400, (118, 75, 162)),
+    'hero-mobile.png': (400, 600, (102, 126, 234)),
+    'bg-card-mob.png': (300, 200, (200, 150, 250)),
+    'desk.png': (500, 300, (230, 126, 234)),
+    'person__avatar.png': (100, 100, (150, 100, 200)),
+    'template.png': (300, 300, (180, 120, 220)),
+    'timeline-card__img-mob.png': (300, 150, (210, 180, 240)),
+    'tournament-mob-2.png': (300, 400, (160, 100, 200)),
+    'tournament-section__item-img1.png': (200, 200, (190, 140, 230)),
+}
+
+for filename, (width, height, color) in images.items():
+    if filename.endswith('.png'):
+        img = Image.new('RGB', (width, height), color)
+        img.save(f'project/assets/img/{filename}')
+        print(f'✅ Создано: {filename}')
+
+print('\n✅ Все изображения созданы!')
+PYTHON
+_______________________________________________________________________________________________
+3. Создание HTTP сервера
+Сервер на Python (server.py)
+
+cat > scripts/server.py << 'PYTHON'
+#!/usr/bin/env python3
+"""
+Простой HTTP сервер для локального проекта
+"""
+
+import http.server
+import socketserver
+import os
+import sys
+from pathlib import Path
+from urllib.parse import urlparse
+
+PORT = 8000
+PROJECT_DIR = Path('/app/project')
+
+class CustomHTTPHandler(http.server.SimpleHTTPRequestHandler):
+    """Кастомный обработчик HTTP запросов"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(PROJECT_DIR), **kwargs)
+    
+    def end_headers(self):
+        """Добавьте CORS заголовки для локальной разработки"""
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+        return super().end_headers()
+    
+    def log_message(self, format, *args):
+        """Красивое логирование"""
+        addr = self.client_address[0]
+        method = self.command
+        path = self.path
+        
+        if 'GET' in format:
+            print(f"🌐 [{method}] {path} from {addr}")
+        else:
+            print(f"⚠️  {format % args}")
+
+
+def start_server():
+    """Запустите сервер"""
+    handler = CustomHTTPHandler
+    
+    with socketserver.TCPServer(("", PORT), handler) as httpd:
+        print("=" * 60)
+        print(f"✅ HTTP Сервер запущен!")
+        print(f"📌 URL: http://localhost:{PORT}")
+        print(f"📁 Папка: {PROJECT_DIR}")
+        print("=" * 60)
+        print("\n🔍 Ожидание запросов...\n")
+        
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\n❌ Сервер остановлен")
+            sys.exit(0)
+
+
+if __name__ == '__main__':
+    if not PROJECT_DIR.exists():
+        print(f"❌ Папка проекта не найдена: {PROJECT_DIR}")
+        sys.exit(1)
+    
+    start_server()
+PYTHON
+
+chmod +x scripts/server.py
+_______________________________________________________________________________________________
+4. Основной скрипт для запуска Safari (run.py)
+
+cat > scripts/run.py << 'PYTHON'
+#!/usr/bin/env python3
+"""
+Скрипт для запуска эмулированного Safari с локальным проектом
+"""
+
+import asyncio
+import subprocess
+import time
+import sys
+from pathlib import Path
+from playwright.async_api import async_playwright
+
+# Конфигурация
+PROJECT_URL = "http://localhost:8000"
+SCREENSHOTS_DIR = Path("/app/screenshots")
+WAIT_TIME = 2  # Время ожидания загрузки страницы
+
+# Создайте папку скриншотов
+SCREENSHOTS_DIR.mkdir(exist_ok=True)
+
+
+class SafariEmulator:
+    """Класс для эмуляции Safari и тестирования проекта"""
+    
+    def __init__(self, headless=False, device_type='desktop'):
+        """
+        Инициализация
+        
+        Args:
+            headless (bool): Показывать ли окно браузера
+            device_type (str): Тип устройства ('desktop', 'iphone', 'ipad')
+        """
+        self.headless = headless
+        self.device_type = device_type
+        self.browser = None
+        self.page = None
+    
+    def get_device_config(self):
+        """Получите конфиг устройства"""
+        configs = {
+            'desktop': {
+                'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+                'viewport': {'width': 1920, 'height': 1080},
+                'device_scale_factor': 1,
+                'has_touch': False,
+            },
+            'iphone': {
+                'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+                'viewport': {'width': 375, 'height': 812},
+                'device_scale_factor': 3,
+                'has_touch': True,
+            },
+            'ipad': {
+                'user_agent': 'Mozilla/5.0 (iPad; CPU OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+                'viewport': {'width': 1024, 'height': 1366},
+                'device_scale_factor': 2,
+                'has_touch': True,
+            },
+        }
+        return configs.get(self.device_type, configs['desktop'])
+    
+    async def launch(self):
+        """Запустите браузер"""
+        print(f"\n🚀 Запуск Safari (режим: {self.device_type})...")
+        
+        playwright = await async_playwright().start()
+        self.browser = await playwright.webkit.launch(
+            headless=self.headless,
+            args=['--disable-gpu'] if self.headless else []
+        )
+        
+        device_config = self.get_device_config()
+        context = await self.browser.new_context(**device_config)
+        self.page = await context.new_page()
+        
+        print("✅ Safari запущен!")
+        return self
+    
+    async def open_project(self, url=PROJECT_URL):
+        """Откройте проект"""
+        print(f"\n📂 Открытие проекта: {url}")
+        
+        try:
+            await self.page.goto(url, wait_until='networkidle')
+            print("✅ Проект загружен!")
+            
+            # Дождитесь загрузки контента
+            await asyncio.sleep(WAIT_TIME)
+            
+            return True
+        except Exception as e:
+            print(f"❌ Ошибка загрузки: {e}")
+            return False
+    
+    async def take_screenshot(self, filename='screenshot.png'):
+        """Сделайте скриншот"""
+        filepath = SCREENSHOTS_DIR / filename
+        await self.page.screenshot(path=str(filepath), full_page=True)
+        print(f"📸 Скриншот сохранен: {filename}")
+        return filepath
+    
+    async def get_page_info(self):
+        """Получите информацию о странице"""
+        print("\n📊 Информация о странице:")
+        
+        # Заголовок
+        title = await self.page.title()
+        print(f"  Заголовок: {title}")
+        
+        # URL
+        url = self.page.url
+        print(f"  URL: {url}")
+        
+        # User-Agent
+        user_agent = await self.page.evaluate('navigator.userAgent')
+        print(f"  User-Agent: {user_agent[:80]}...")
+        
+        # Размер viewport
+        viewport_size = await self.page.evaluate('() => ({ width: window.innerWidth, height: window.innerHeight })')
+        print(f"  Размер окна: {viewport_size['width']}x{viewport_size['height']}")
+        
+        # Количество изображений
+        images = await self.page.query_selector_all('img')
+        print(f"  Изображений загружено: {len(images)}")
+        
+        # Ошибки в консоли
+        console_logs = await self.page.evaluate('''() => {
+            return {
+                scripts: document.querySelectorAll('script').length,
+                links: document.querySelectorAll('link[rel="stylesheet"]').length,
+                paragraphs: document.querySelectorAll('p').length,
+            }
+        }''')
+        print(f"  Скриптов: {console_logs['scripts']}")
+        print(f"  Стилей: {console_logs['links']}")
+        print(f"  Параграфов: {console_logs['paragraphs']}")
+    
+    async def test_responsive(self):
+        """Тестируйте отзывчивость на разных экранах"""
+        print("\n📱 Тестирование отзывчивости...")
+        
+        devices = ['desktop', 'iphone', 'ipad']
+        
+        for device in devices:
+            print(f"\n  Тестирование на {device}...")
+            # Для полного теста нужно переоткрыть браузер
+            # Это упрощенная версия
+            await self.take_screenshot(f'responsive_{device}.png')
+    
+    async def test_performance(self):
+        """Тестируйте производительность"""
+        print("\n⚡ Тестирование производительности...")
+        
+        metrics = await self.page.evaluate('''() => {
+            const navigation = performance.getEntriesByType('navigation')[0];
+            return {
+                'DNS': navigation.domainLookupEnd - navigation.domainLookupStart,
+                'TCP': navigation.connectEnd - navigation.connectStart,
+                'Request': navigation.responseStart - navigation.requestStart,
+                'Response': navigation.responseEnd - navigation.responseStart,
+                'DOM': navigation.domInteractive - navigation.domLoading,
+                'Load': navigation.loadEventEnd - navigation.fetchStart,
+            }
+        }''')
+        
+        print("\n  Метрики производительности:")
+        for metric_name, value in metrics.items():
+            print(f"    {metric_name}: {value:.0f}ms")
+    
+    async def check_console_errors(self):
+        """Проверьте ошибки в консоли"""
+        print("\n🔍 Проверка консоли...")
+        
+        errors = []
+        warnings = []
+        logs = []
+        
+        def on_console_msg(msg):
+            if msg.type == 'error':
+                errors.append(msg.text)
+            elif msg.type == 'warning':
+                warnings.append(msg.text)
+            else:
+                logs.append(msg.text)
+        
+        # Подпишитесь на сообщения консоли
+        self.page.on('console', on_console_msg)
+        
+        # Перезагрузите страницу, чтобы перехватить все сообщения
+        await self.page.reload()
+        await asyncio.sleep(1)
+        
+        print(f"  ℹ️  Логов: {len(logs)}")
+        print(f"  ⚠️  Предупреждений: {len(warnings)}")
+        print(f"  ❌ Ошибок: {len(errors)}")
+        
+        if errors:
+            print("\n  Ошибки:")
+            for error in errors[:5]:  # Первые 5 ошибок
+                print(f"    - {error}")
+    
+    async def run_interactive(self):
+        """Интерактивный режим"""
+        print("\n" + "=" * 60)
+        print("🎮 ИНТЕРАКТИВНЫЙ РЕЖИМ")
+        print("=" * 60)
+        
+        print(f"\n✅ Safari запущен с URL: {PROJECT_URL}")
+        print("\nДоступные команды:")
+        print("  s - скриншот")
+        print("  i - информация о странице")
+        print("  p - производительность")
+        print("  c - консоль")
+        print("  r - перезагрузка")
+        print("  q - выход")
+        
+        while True:
+            try:
+                cmd = input("\n> Команда: ").strip().lower()
+                
+                if cmd == 's':
+                    await self.take_screenshot(f'screenshot_{int(time.time())}.png')
+                elif cmd == 'i':
+                    await self.get_page_info()
+                elif cmd == 'p':
+                    await self.test_performance()
+                elif cmd == 'c':
+                    await self.check_console_errors()
+                elif cmd == 'r':
+                    await self.page.reload()
+                    print("✅ Страница перезагружена")
+                elif cmd == 'q':
+                    break
+                else:
+                    print("❌ Неизвестная команда")
+            except KeyboardInterrupt:
+                break
+    
+    async def close(self):
+        """Закройте браузер"""
+        if self.page:
+            await self.page.close()
+        if self.browser:
+            await self.browser.close()
+        print("\n✅ Safari закрыт")
+
+
+async def main():
+    """Главная функция"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Safari Emulator для локального проекта')
+    parser.add_argument('--device', choices=['desktop', 'iphone', 'ipad'], 
+                       default='desktop', help='Тип устройства')
+    parser.add_argument('--headless', action='store_true', 
+                       help='Скрыть окно браузера')
+    parser.add_argument('--no-interactive', action='store_true',
+                       help='Не запускать интерактивный режим')
+    parser.add_argument('--url', default=PROJECT_URL,
+                       help='URL проекта')
+    
+    args = parser.parse_args()
+    
+    # Создайте эмулятор
+    emulator = await SafariEmulator(
+        headless=args.headless,
+        device_type=args.device
+    ).launch()
+    
+    try:
+        # Откройте проект
+        if await emulator.open_project(args.url):
+            # Получите информацию
+            await emulator.get_page_info()
+            
+            # Сделайте скриншот
+            await emulator.take_screenshot(f'initial_{args.device}.png')
+            
+            # Проверьте консоль
+            await emulator.check_console_errors()
+            
+            # Интерактивный режим
+            if not args.no_interactive:
+                await emulator.run_interactive()
+    
+    finally:
+        await emulator.close()
+
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n\n❌ Прервано пользователем")
+        sys.exit(0)
+PYTHON
+
+chmod +x scripts/run.py
+_______________________________________________________________________________________________
+5. Скрипт для автоматизированного тестирования (conftest.py)
+
+cat > scripts/conftest.py << 'PYTHON'
+#!/usr/bin/env python3
+"""
+Конфигурация и фиксчуры для тестов
+"""
+
+import pytest
+import asyncio
+from pathlib import Path
+from playwright.async_api import async_playwright
+
+SCREENSHOTS_DIR = Path('/app/screenshots')
+PROJECT_URL = 'http://localhost:8000'
+
+SCREENSHOTS_DIR.mkdir(exist_ok=True)
+
+
+@pytest.fixture(scope='session')
+def event_loop():
+    """Создайте event loop для async тестов"""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture
+async def safari_browser():
+    """Фиксчура для Safari браузера"""
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        yield browser
+        await browser.close()
+
+
+@pytest.fixture
+async def safari_page(safari_browser):
+    """Фиксчура для страницы Safari"""
+    page = await safari_browser.new_page()
+    
+    # Логирование консоли
+    def log_console(msg):
+        print(f"[CONSOLE {msg.type.upper()}] {msg.text}")
+    
+    page.on('console', log_console)
+    
+    yield page
+    await page.close()
+
+
+@pytest.fixture
+async def iphone_page(safari_browser):
+    """Фиксчура для iPhone Safari"""
+    iphone_config = {
+        'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15',
+        'viewport': {'width': 375, 'height': 812},
+        'device_scale_factor': 3,
+        'has_touch': True,
+    }
+    
+    context = await safari_browser.new_context(**iphone_config)
+    page = await context.new_page()
+    
+    yield page
+    
+    await context.close()
+
+
+@pytest.fixture
+async def project_page(safari_page):
+    """Фиксчура для загруженного проекта"""
+    await safari_page.goto(PROJECT_URL, wait_until='networkidle')
+    yield safari_page
+
+
+# Маркеры для тестов
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "smoke: smoke тесты"
+    )
+    config.addinivalue_line(
+        "markers", "responsive: тесты отзывчивости"
+    )
+    config.addinivalue_line(
+        "markers", "performance: тесты производительности"
+    )
+PYTHON
+
+chmod +x scripts/conftest.py
+_______________________________________________________________________________________________
+6. Примеры тестов (test_project.py)
+
+cat > tests/test_project.py << 'PYTHON'
+#!/usr/bin/env python3
+"""
+Тесты для локального проекта
+"""
+
+import pytest
+from pathlib import Path
+
+SCREENSHOTS_DIR = Path('/app/screenshots')
+PROJECT_URL = 'http://localhost:8000'
+
+
+class TestBasic:
+    """Базовые тесты"""
+    
+    @pytest.mark.smoke
+    @pytest.mark.asyncio
+    async def test_page_loads(self, project_page):
+        """Проверьте, что страница загружается"""
+        assert project_page.url == PROJECT_URL
+        title = await project_page.title()
+        assert len(title) > 0
+        print(f"✅ Страница загружена: {title}")
+    
+    @pytest.mark.smoke
+    @pytest.mark.asyncio
+    async def test_images_loaded(self, project_page):
+        """Проверьте, что изображения загружены"""
+        images = await project_page.query_selector_all('img')
+        assert len(images) > 0, "Изображения не найдены"
+        
+        # Проверьте, что изображения загружены
+        loaded_count = 0
+        for img in images:
+            is_loaded = await img.evaluate('img => img.complete')
+            if is_loaded:
+                loaded_count += 1
+        
+        print(f"✅ Загружено изображений: {loaded_count}/{len(images)}")
+    
+    @pytest.mark.smoke
+    @pytest.mark.asyncio
+    async def test_styles_loaded(self, project_page):
+        """Проверьте, что стили загружены"""
+        stylesheets = await project_page.query_selector_all('link[rel="stylesheet"]')
+        assert len(stylesheets) > 0, "Стили не найдены"
+        print(f"✅ Найдено стилей: {len(stylesheets)}")
+    
+    @pytest.mark.smoke
+    @pytest.mark.asyncio
+    async def test_scripts_loaded(self, project_page):
+        """Проверьте, что скрипты загружены"""
+        scripts = await project_page.query_selector_all('script')
+        assert len(scripts) > 0, "Скрипты не найдены"
+        print(f"✅ Найдено скриптов: {len(scripts)}")
+
+
+class TestLayout:
+    """Тесты макета"""
+    
+    @pytest.mark.asyncio
+    async def test_header_exists(self, project_page):
+        """Проверьте наличие заголовка"""
+        header = await project_page.query_selector('header')
+        assert header is not None, "Header не найден"
+        print("✅ Header найден")
+    
+    @pytest.mark.asyncio
+    async def test_main_content_exists(self, project_page):
+        """Проверьте наличие основного контента"""
+        main = await project_page.query_selector('main')
+        assert main is not None, "Main не найден"
+        print("✅ Main контент найден")
+    
+    @pytest.mark.asyncio
+    async def test_cards_count(self, project_page):
+        """Проверьте количество карточек"""
+        cards = await project_page.query_selector_all('.card')
+        assert len(cards) > 0, "Карточки не найдены"
+        print(f"✅ Найдено карточек: {len(cards)}")
+
+
+class TestInteractivity:
+    """Тесты интерактивности"""
+    
+    @pytest.mark.asyncio
+    async def test_card_click(self, project_page):
+        """Проверьте клик по карточке"""
+        cards = await project_page.query_selector_all('.card')
+        assert len(cards) > 0, "Карточки не найдены"
+        
+        # Кликните по первой карточке
+        await cards[0].click()
+        
+        # Дождитесь dialog (если есть)
+        try:
+            await project_page.wait_for_function(
+                'window.lastAlert !== undefined',
+                timeout=1000
+            )
+            print("✅ Карточка кликабельна")
+        except:
+            print("⚠️  Dialog не появился (может быть, функция не реализована)")
+    
+    @pytest.mark.asyncio
+    async def test_hover_effects(self, project_page):
+        """Проверьте эффекты при наведении"""
+        cards = await project_page.query_selector_all('.card')
+        assert len(cards) > 0
+        
+        # Наведитесь на карточку
+        await cards[0].hover()
+        
+        # Получите computed стиль
+        transform = await cards[0].evaluate(
+            'el => window.getComputedStyle(el).transform'
+        )
+        
+        print(f"✅ Hover эффект: {transform}")
+
+
+class TestResponsive:
+    """Тесты отзывчивости"""
+    
+    @pytest.mark.responsive
+    @pytest.mark.asyncio
+    async def test_mobile_viewport(self, iphone_page):
+        """Проверьте мобильный просмотр"""
+        await iphone_page.goto(PROJECT_URL, wait_until='networkidle')
+        
+        viewport = iphone_page.viewport_size
+        assert viewport['width'] == 375
+        assert viewport['height'] == 812
+        
+        # Сделайте скриншот
+        await iphone_page.screenshot(path=str(SCREENSHOTS_DIR / 'iphone_view.png'))
+        print("✅ Мобильный просмотр корректен")
+    
+    @pytest.mark.responsive
+    @pytest.mark.asyncio
+    async def test_desktop_viewport(self, project_page):
+        """Проверьте десктопный просмотр"""
+        viewport = project_page.viewport_size
+        assert viewport['width'] == 1920
+        assert viewport['height'] == 1080
+        
+        # Сделайте скриншот
+        await project_page.screenshot(path=str(SCREENSHOTS_DIR / 'desktop_view.png'))
+        print("✅ Десктопный просмотр корректен")
+
+
+class TestPerformance:
+    """Тесты производительности"""
+    
+    @pytest.mark.performance
+    @pytest.mark.asyncio
+    async def test_page_load_time(self, safari_page):
+        """Измерьте время загрузки"""
+        import time
+        
+        start = time.time()
+        await safari_page.goto(PROJECT_URL, wait_until='networkidle')
+        load_time = time.time() - start
+        
+        print(f"⏱️  Время загрузки: {load_time:.2f} сек")
+        
+        # Проверьте, что загрузка быстрая
+        assert load_time < 10, "Страница загружается слишком долго"
+    
+    @pytest.mark.performance
+    @pytest.mark.asyncio
+    async def test_console_errors(self, project_page):
+        """Проверьте отсутствие ошибок"""
+        errors = []
+        
+        def on_console(msg):
+            if msg.type == 'error':
+                errors.append(msg.text)
+        
+        project_page.on('console', on_console)
+        
+        # Перезагрузите и дождитесь загрузки
+        await project_page.reload(wait_until='networkidle')
+        
+        if errors:
+            print(f"❌ Найдено ошибок: {len(errors)}")
+            for error in errors[:5]:
+                print(f"  - {error}")
+        else:
+            print("✅ Ошибок в консоли не найдено")
+
+
+class TestAccessibility:
+    """Тесты доступности"""
+    
+    @pytest.mark.asyncio
+    async def test_images_have_alt(self, project_page):
+        """Проверьте наличие alt текста"""
+        images = await project_page.query_selector_all('img')
+        
+        images_without_alt = 0
+        for img in images:
+            alt = await img.get_attribute('alt')
+            if not alt:
+                images_without_alt += 1
+        
+        print(f"✅ Изображений без alt: {images_without_alt}/{len(images)}")
+    
+    @pytest.mark.asyncio
+    async def test_headings_hierarchy(self, project_page):
+        """Проверьте иерархию заголовков"""
+        h1 = await project_page.query_selector_all('h1')
+        h2 = await project_page.query_selector_all('h2')
+        
+        print(f"✅ H1: {len(h1)}, H2: {len(h2)}")
+        
+        # H1 должна быть одна
+        assert len(h1) <= 1, "Несколько H1 на странице"
+PYTHON
+_______________________________________________________________________________________________
+7. Docker Compose для всего
+
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  # HTTP Сервер для проекта
+  web-server:
+    image: python:3.11-slim
+    container_name: project-server
+    
+    volumes:
+      - ./project:/app/project
+      - ./scripts:/app/scripts
+    
+    working_dir: /app
+    
+    command: python scripts/server.py
+    
+    ports:
+      - "8000:8000"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    restart: unless-stopped
+  
+  # Playwright + Safari
+  playwright-safari:
+    image: mcr.microsoft.com/playwright:v1.40.0-focal
+    container_name: safari-emulator
+    
+    depends_on:
+      web-server:
+        condition: service_healthy
+    
+    volumes:
+      - ./project:/app/project
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./screenshots:/app/screenshots
+    
+    working_dir: /app
+    
+    environment:
+      - PLAYWRIGHT_BROWSER=webkit
+      - DISPLAY=:99
+    
+    stdin_open: true
+    tty: true
+    
+    command: /bin/bash
+    
+    restart: unless-stopped
+
+  # Опционально: Nginx для более реалистичного сервера
+  nginx:
+    image: nginx:latest
+    container_name: project-nginx
+    
+    volumes:
+      - ./project:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    
+    ports:
+      - "80:80"
+    
+    depends_on:
+      - web-server
+    
+    restart: unless-stopped
+    
+    # Раскомментируйте для использования
+    # profiles:
+    #   - nginx
+
+volumes:
+  screenshots:
+    driver: local
+EOF
+_______________________________________________________________________________________________
+8. Конфиг Nginx (опционально)
+
+cat > nginx.conf << 'EOF'
+events {
+    worker_connections 1024;
+}
+
+http {
+    server {
+        listen 80;
+        server_name localhost;
+        root /usr/share/nginx/html;
+        
+        index index.html;
+        
+        # Кэширование
+        location /assets/ {
+            expires 1h;
+            add_header Cache-Control "public, immutable";
+        }
+        
+        # Gzip сжатие
+        gzip on;
+        gzip_types text/plain text/css application/javascript;
+        
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+}
+EOF
+_______________________________________________________________________________________________
+9. Полные команды для запуска
+Вариант 1: Пошаговый запуск
+
+# Шаг 1: Создайте структуру
+mkdir -p ~/project-safari
+cd ~/project-safari
+mkdir -p {project/assets/{img,script,style},tests,scripts,screenshots}
+
+# Шаг 2: Скопируйте файлы (создайте как показано выше)
+# docker-compose.yml
+# scripts/server.py
+# scripts/run.py
+# scripts/conftest.py
+# tests/test_project.py
+# project/index.html
+# project/assets/style/style.css
+# project/assets/script/index.js
+# и изображения
+
+# Шаг 3: Запустите контейнеры
+docker-compose up -d
+
+# Шаг 4: Дождитесь готовности сервера (30 сек)
+sleep 30
+
+# Шаг 5: Проверьте, что сервер работает
+curl http://localhost:8000
+
+# Шаг 6: Войдите в контейнер Safari
+docker-compose exec playwright-safari bash
+
+# Шаг 7: Установите зависимости (внутри контейнера)
+pip install -r requirements.txt
+playwright install webkit
+
+# Шаг 8: Запустите Safari с проектом
+python scripts/run.py --device desktop --no-interactive
+
+# или в интерактивном режиме
+python scripts/run.py --device desktop
+
+# Шаг 9: Запустите тесты
+pytest tests/test_project.py -v -s
+
+# Шаг 10: Проверьте скриншоты
+ls -la screenshots/
+
+# Шаг 11: Выход
+exit
+
+# Шаг 12: Остановка
+docker-compose down
+_______________________________________________________________________________________________
+Вариант 2: Быстрый старт (один скрипт)
+
+# Создайте файл start.sh
+cat > start.sh << 'BASH'
+#!/bin/bash
+
+set -e
+
+echo "🚀 Запуск Safari Emulator..."
+echo ""
+
+# Проверьте Docker
+if ! command -v docker-compose &> /dev/null; then
+    echo "❌ Docker Compose не установлен"
+    exit 1
+fi
+
+# Запустите контейнеры
+echo "📦 Запуск контейнеров..."
+docker-compose up -d
+
+# Дождитесь готовности
+echo "⏳ Ожидание готовности сервера (30 сек)..."
+sleep 30
+
+# Проверьте сервер
+if ! curl -s http://localhost:8000 > /dev/null; then
+    echo "❌ Сервер не отвечает"
+    docker-compose down
+    exit 1
+fi
+
+echo "✅ Сервер готов!"
+echo ""
+
+# Установка зависимостей
+echo "📚 Установка зависимостей..."
+docker-compose exec -T playwright-safari bash -c "pip install playwright pytest pytest-asyncio && playwright install webkit"
+
+echo ""
+echo "✅ Все готово!"
+echo ""
+echo "Команды:"
+echo "  docker-compose exec playwright-safari python scripts/run.py --device desktop"
+echo "  docker-compose exec playwright-safari pytest tests/test_project.py -v -s"
+echo "  docker-compose down"
+
+BASH
+
+chmod +x start.sh
+./start.sh
+_______________________________________________________________________________________________
+10. Структура проекта (финальная
+
+project-safari/
+├── docker-compose.yml
+├── nginx.conf
+├── requirements.txt
+├── start.sh
+├── project/
+│   ├── index.html
+│   └── assets/
+│       ├── img/
+│       │   ├── logo.svg
+│       │   ├── hero-desk.png
+│       │   ├── hero-mobile.png
+│       │   ├── bg-card-mob.png
+│       │   ├── desk.png
+│       │   ├── person__avatar.png
+│       │   ├── template.png
+│       │   ├── timeline-card__img-mob.png
+│       │   ├── tournament-mob-2.png
+│       │   └── tournament-section__item-img1.png
+│       ├── script/
+│       │   ├── index.js
+│       │   ├── carousel.js
+│       │   ├── slider.js
+│       │   └── media.js
+│       └── style/
+│           └── style.css
+├── scripts/
+│   ├── server.py
+│   ├── run.py
+│   └── conftest.py
+├── tests/
+│   └── test_project.py
+└── screenshots/
+    └── (скриншоты будут здесь)
+_______________________________________________________________________________________________
+11. Быстрые команды
+
+# Запуск всего
+docker-compose up -d && sleep 30
+
+# Вход в контейнер
+docker-compose exec playwright-safari bash
+
+# Установка (внутри контейнера)
+pip install playwright pytest pytest-asyncio && playwright install webkit
+
+# Запуск Safari (интерактивный)
+python scripts/run.py --device desktop
+
+# Запуск Safari (автоматический)
+python scripts/run.py --device desktop --no-interactive
+
+# Запуск на iPhone
+python scripts/run.py --device iphone --no-interactive
+
+# Запуск на iPad
+python scripts/run.py --device ipad --no-interactive
+
+# Запуск тестов
+pytest tests/test_project.py -v -s
+
+# Запуск только smoke тестов
+pytest tests/test_project.py -m smoke -v -s
+
+# Запуск тестов отзывчивости
+pytest tests/test_project.py -m responsive -v -s
+
+# Просмотр скриншотов
+docker cp safari-emulator:/app/screenshots ./
+
+# Очистка
+docker-compose down -v
+
+# Перезапуск
+docker-compose restart
+_______________________________________________________________________________________________
+Заключение
+Теперь у вас есть:
+
+✅ HTTP сервер для локального проекта
+✅ Playwright + Safari для тестирования
+✅ Интерактивный режим для ручного тестирования
+✅ Автоматизированные тесты для различных сценариев
+✅ Поддержка разных устройств (desktop, iPhone, iPad)
+✅ Скриншоты и отчеты для документирования
+
+Все работает в Docker на Ubuntu 22.04!

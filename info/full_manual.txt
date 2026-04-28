@@ -1,0 +1,606 @@
+Теория: Как работает эмуляция Safari
+Что такое Playwright?
+Playwright - это фреймворк для автоматизации браузеров, разработанный Microsoft.
+
+Три браузерных движка в Playwright:
+┌─────────────────────────────────────────────┐
+│          PLAYWRIGHT                         │
+├─────────────────────────────────────────────┤
+│                                             │
+│  ┌──────────────┐  ┌──────────────┐         │
+│  │ Chromium     │  │ Firefox      │         │
+│  │ (Chrome/Edge)│  │              │         │
+│  └──────────────┘  └──────────────┘         │
+│                                             │
+│  ┌──────────────┐                           │
+│  │ WebKit       │ ← Движок Safari!          │
+│  │ (Safari)     │                           │
+│  └──────────────┘                           │
+│                                             │
+└─────────────────────────────────────────────┘
+
+WebKit - это движок, который использует реальный Safari. 
+Playwright использует open-source версию WebKit, поэтому эмуляция очень точная.
+
+2. Пошаговая установка и запуск
+Шаг 1: Подготовка директории
+_______________________________________________________________________________________________
+# Создайте рабочую директорию
+mkdir -p ~/safari-playwright && cd ~/safari-playwright
+_______________________________________________________________________________________________
+# Создайте подпапки
+mkdir -p {tests,screenshots,downloads,config}
+_______________________________________________________________________________________________
+# Структура проекта:
+# safari-playwright/
+# ├── docker-compose.yml
+# ├── tests/
+# │   ├── test_basic.py
+# │   ├── test_forms.py
+# │   └── test_performance.py
+# ├── screenshots/
+# ├── downloads/
+# └── config/
+_______________________________________________________________________________________________
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  playwright-safari:
+    image: mcr.microsoft.com/playwright:v1.40.0-focal
+    container_name: safari-emulator
+    
+    # Мнтирование директорий
+    volumes:
+      - ./tests:/app/tests
+      - ./screenshots:/app/screenshots
+      - ./downloads:/app/downloads
+      - ./config:/app/config
+    
+    # Рабочая директория
+    working_dir: /app
+    
+    # Интерактивный режим
+    stdin_open: true
+    tty: true
+    
+    # Порты (для веб-сервера, если нужен)
+    ports:
+      - "8080:8080"
+      - "3000:3000"
+    
+    # Переменные окружения
+    environment:
+      - DISPLAY=:99
+      - PLAYWRIGHT_BROWSER=webkit
+    
+    # Команда по умолчанию
+    command: /bin/bash
+    
+    # Автоматический перезапуск
+    restart: unless-stopped
+EOF
+_______________________________________________________________________________________________
+cat > requirements.txt << 'EOF'
+playwright>=1.40.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pillow>=10.0.0  # для обработки скриншотов
+pdf2image>=1.16.0  # для PDF
+requests>=2.31.0  # для HTTP запросов
+EOF
+_______________________________________________________________________________________________
+# Запустите контейнер
+docker-compose up -d
+
+# Проверьте статус
+docker-compose ps
+
+# Должно вывести:
+# NAME                COMMAND             STATUS
+# safari-emulator     /bin/bash           Up ...
+
+# Войдите в контейнер
+docker-compose exec playwright-safari bash
+
+# Внутри контейнера установите зависимости
+pip install -r requirements.txt
+
+# Установите WebKit браузер
+playwright install webkit
+
+# Проверьте установку
+playwright install-deps webkit
+_______________________________________________________________________________________________
+3. Примеры использования Safari
+Пример 1: Простой переход на сайт
+
+# tests/test_basic.py
+import asyncio
+from playwright.async_api import async_playwright
+
+async def test_basic():
+    async with async_playwright() as p:
+        # Запустите WebKit (Safari)
+        browser = await p.webkit.launch(headless=False)  # headless=True скрывает окно
+        
+        # Создайте страницу
+        page = await browser.new_page()
+        
+        # Перейдите на сайт
+        await page.goto('https://example.com')
+        
+        # Получите заголовок
+        title = await page.title()
+        print(f"Заголовок страницы: {title}")
+        
+        # Сделайте скриншот
+        await page.screenshot(path='screenshots/example.png')
+        
+        # Закройте браузер
+        await browser.close()
+
+# Запуск
+if __name__ == '__main__':
+    asyncio.run(test_basic())
+_______________________________________________________________________________________________
+Запуск в контейнере:
+docker-compose exec playwright-safari python tests/test_basic.py
+_______________________________________________________________________________________________
+Пример 2: Эмуляция реальной версии Safari
+
+# tests/test_safari_emulation.py
+import asyncio
+from playwright.async_api import async_playwright
+
+async def test_safari_specific():
+    async with async_playwright() as p:
+        # Запустите WebKit
+        browser = await p.webkit.launch()
+        
+        # Эмулируйте конкретное устройство (iPhone 14)
+        iphone_14 = p.devices['iPhone 14']
+        
+        context = await browser.new_context(**iphone_14)
+        page = await context.new_page()
+        
+        # Перейдите на сайт
+        await page.goto('https://www.apple.com')
+        
+        # Скриншот
+        await page.screenshot(path='screenshots/iphone_14_safari.png')
+        
+        await context.close()
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(test_safari_specific())
+_______________________________________________________________________________________________
+Запуск:
+docker-compose exec playwright-safari python tests/test_safari_emulation.py
+_______________________________________________________________________________________________
+Пример 3: Детальная эмуляция Safari с User-Agent
+
+# tests/test_advanced_emulation.py
+import asyncio
+from playwright.async_api import async_playwright
+
+async def test_advanced_safari():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        
+        # Эмуляция разных версий Safari
+        safari_versions = {
+            'safari_macos_latest': {
+                'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+                'viewport': {'width': 1920, 'height': 1080},
+                'device_scale_factor': 1,
+                'has_touch': False,
+            },
+            'safari_macos_older': {
+                'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15',
+                'viewport': {'width': 1440, 'height': 900},
+                'device_scale_factor': 1,
+                'has_touch': False,
+            },
+            'safari_ipad': {
+                'user_agent': 'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+                'viewport': {'width': 1024, 'height': 1366},
+                'device_scale_factor': 2,
+                'has_touch': True,
+            }
+        }
+        
+        for device_name, device_config in safari_versions.items():
+            print(f"\n📱 Тестирование: {device_name}")
+            
+            # Создайте контекст с параметрами
+            context = await browser.new_context(**device_config)
+            page = await context.new_page()
+            
+            # Перейдите на сайт
+            await page.goto('https://www.google.com')
+            
+            # Получите информацию
+            user_agent = await page.evaluate('navigator.userAgent')
+            print(f"User-Agent: {user_agent}")
+            
+            # Скриншот
+            await page.screenshot(path=f'screenshots/{device_name}.png')
+            
+            await context.close()
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(test_advanced_safari())
+_______________________________________________________________________________________________
+Запуск:
+docker-compose exec playwright-safari python tests/test_advanced_emulation.py
+_______________________________________________________________________________________________
+Пример 4: Заполнение форм и взаимодействие
+
+# tests/test_forms.py
+import asyncio
+from playwright.async_api import async_playwright
+
+async def test_form_interaction():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        page = await browser.new_page()
+        
+        # Перейдите на сайт с формой
+        await page.goto('https://httpbin.org/forms/post')
+        
+        # Заполните текстовое поле
+        await page.fill('input[name="custname"]', 'Ivan Petrov')
+        
+        # Выберите радиокнопку
+        await page.click('input[value="large"]')
+        
+        # Выберите чекбокс
+        await page.click('input[name="topping"][value="cheese"]')
+        
+        # Выберите вариант из dropdown
+        await page.select_option('select[name="size"]', 'small')
+        
+        # Введите текст в textarea
+        await page.fill('textarea[name="comments"]', 'Пожалуйста, доставьте быстро!')
+        
+        # Нажмите на кнопку (без submit)
+        await page.screenshot(path='screenshots/form_filled.png')
+        
+        # Отправьте форму
+        await page.click('button:has-text("Order")')
+        
+        # Дождитесь ответа
+        await page.wait_for_load_state('networkidle')
+        
+        # Скриншот результата
+        await page.screenshot(path='screenshots/form_result.png')
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(test_form_interaction())
+_______________________________________________________________________________________________
+Запуск:
+docker-compose exec playwright-safari python tests/test_forms.py
+_______________________________________________________________________________________________
+Пример 5: Проверка производительности
+
+# tests/test_performance.py
+import asyncio
+from playwright.async_api import async_playwright
+import json
+
+async def test_performance():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        page = await browser.new_page()
+        
+        # Запустите запись профайла
+        await page.goto('https://www.example.com')
+        
+        # Измерьте время загрузки
+        import time
+        start = time.time()
+        await page.goto('https://www.wikipedia.org')
+        load_time = time.time() - start
+        
+        print(f"⏱️  Время загрузки: {load_time:.2f} секунд")
+        
+        # Получите метрики производительности
+        metrics = await page.evaluate('''() => {
+            const navigation = performance.getEntriesByType('navigation')[0];
+            return {
+                'DNS Lookup': navigation.domainLookupEnd - navigation.domainLookupStart,
+                'TCP Connection': navigation.connectEnd - navigation.connectStart,
+                'TLS Handshake': navigation.secureConnectionStart ? navigation.connectEnd - navigation.secureConnectionStart : 0,
+                'Request Time': navigation.responseStart - navigation.requestStart,
+                'Response Time': navigation.responseEnd - navigation.responseStart,
+                'DOM Processing': navigation.domInteractive - navigation.domLoading,
+                'DOM Complete': navigation.domComplete - navigation.domLoading,
+                'Resource Loading': navigation.loadEventStart - navigation.domComplete,
+                'Total': navigation.loadEventEnd - navigation.fetchStart
+            }
+        }''')
+        
+        print("\n📊 Метрики производительности:")
+        for metric_name, value in metrics.items():
+            print(f"  {metric_name}: {value:.0f}ms")
+        
+        # Сохраните в JSON
+        with open('config/performance_metrics.json', 'w') as f:
+            json.dump(metrics, f, indent=2)
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(test_performance())
+_______________________________________________________________________________________________
+Запуск:
+docker-compose exec playwright-safari python tests/test_performance.py
+_______________________________________________________________________________________________
+Пример 6: Тестирование с Pytest
+
+# tests/test_with_pytest.py
+import pytest
+from playwright.async_api import async_playwright
+
+@pytest.mark.asyncio
+async def test_google_search():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        page = await browser.new_page()
+        
+        # Переход на Google
+        await page.goto('https://www.google.com')
+        
+        # Поиск поля ввода
+        search_box = await page.query_selector('input[name="q"]')
+        assert search_box is not None, "Search box not found"
+        
+        # Введите поисковый запрос
+        await search_box.fill('playwright safari')
+        await page.press('input[name="q"]', 'Enter')
+        
+        # Дождитесь результатов
+        await page.wait_for_selector('div[data-sokoban-container]')
+        
+        # Проверьте результаты
+        results = await page.query_selector_all('a h3')
+        assert len(results) > 0, "No search results found"
+        
+        print(f"✅ Найдено {len(results)} результатов")
+        
+        await browser.close()
+
+@pytest.mark.asyncio
+async def test_page_title():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        page = await browser.new_page()
+        
+        await page.goto('https://example.com')
+        title = await page.title()
+        
+        assert 'Example Domain' in title
+        print(f"✅ Заголовок корректен: {title}")
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v', '-s'])
+_______________________________________________________________________________________________
+Запуск:
+docker-compose exec playwright-safari pytest tests/test_with_pytest.py -v -s
+_______________________________________________________________________________________________
+4. Использование Safari интерактивно
+Режим “Headed” (видимое окно)
+
+# tests/interactive_safari.py
+import asyncio
+from playwright.async_api import async_playwright
+
+async def interactive_safari():
+    async with async_playwright() as p:
+        # headless=False - браузер будет видимым
+        browser = await p.webkit.launch(headless=False)
+        
+        page = await browser.new_page()
+        await page.goto('https://www.google.com')
+        
+        # Браузер останется открыт, пока вы не закроете его
+        # Вы можете взаимодействовать с ним вручную
+        print("🌐 Safari открыт. Вы можете взаимодействовать с ним.")
+        print("Нажмите Enter в терминале, чтобы продолжить...")
+        input()
+        
+        # Сделайте скриншот
+        await page.screenshot(path='screenshots/safari_interactive.png')
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(interactive_safari())
+_______________________________________________________________________________________________
+Запуск:
+# На хосте (не в контейнере)
+# Если у вас есть X11 или VNC
+docker-compose exec playwright-safari python tests/interactive_safari.py
+_______________________________________________________________________________________________
+5. Полный рабочий процесс
+Команды для быстрого старта:
+
+# 1. Создайте проект
+mkdir -p ~/safari-playwright && cd ~/safari-playwright
+
+# 2. Скопируйте docker-compose.yml (см. выше)
+
+# 3. Создайте requirements.txt
+cat > requirements.txt << 'EOF'
+playwright>=1.40.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+EOF
+
+# 4. Запустите контейнер
+docker-compose up -d
+
+# 5. Установите зависимости
+docker-compose exec playwright-safari bash -c "pip install -r requirements.txt && playwright install webkit"
+
+# 6. Создайте тестовый файл
+mkdir -p tests
+cat > tests/test_demo.py << 'PYTHON'
+import asyncio
+from playwright.async_api import async_playwright
+
+async def main():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        page = await browser.new_page()
+        await page.goto('https://example.com')
+        title = await page.title()
+        print(f"✅ Заголовок: {title}")
+        await page.screenshot(path='screenshots/demo.png')
+        await browser.close()
+
+asyncio.run(main())
+PYTHON
+
+# 7. Запустите тест
+docker-compose exec playwright-safari python tests/test_demo.py
+
+# 8. Проверьте скриншоты
+ls -la screenshots/
+
+# 9. Остановите контейнер
+docker-compose down
+_______________________________________________________________________________________________
+6. Ограничения эмуляции Safari
+
+Функция	                              Эмуляция	                              Примечание
+WebKit engine	✅                      Точная	                      Используется реальный WebKit
+User-Agent	✅                      Точный	                      Можно установить любой
+Cookies/Storage	✅                      Работают	                      Как в реальном Safari
+JavaScript	✅                      Поддержано	                      Почти полная поддержка
+CSS	✅                      Поддерживается	                      Как в реальном Safari
+WebGL	✅                      Работает	                      На некоторых системах
+Geolocation	✅                      Эмулируется	                      Можно установить координаты
+Touch events	✅                      Поддержка	                      Для мобильных устройств
+Service Workers	✅                      Работают	Д                     ля PWA
+WebAssembly	✅                      Поддержка	                      Работает как в Safari
+Native dialogs	⚠️                      Ограниченно	                      alert(), confirm() работают
+Video/Audio	✅                      Работает	                      Зависит от кодеков
+_______________________________________________________________________________________________
+7. Продвинутые примеры
+Пример: Скачивание файлов
+
+# tests/test_download.py
+import asyncio
+from playwright.async_api import async_playwright
+import os
+
+async def test_download():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        page = await browser.new_page()
+        
+        # Настройте обработчик загрузки
+        async with page.expect_download() as download_info:
+            # Кликните на ссылку для скачивания
+            await page.goto('https://www.w3.org/WAI/WCAG21/Techniques/pdf/')
+            await page.click('a[href*=".pdf"]')
+        
+        download = await download_info.value
+        
+        # Сохраните файл
+        await download.save_as(os.path.join('downloads', download.suggested_filename))
+        
+        print(f"✅ Файл загружен: {download.suggested_filename}")
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(test_download())
+_______________________________________________________________________________________________
+Пример: Работа с куками
+
+# tests/test_cookies.py
+import asyncio
+from playwright.async_api import async_playwright
+import json
+
+async def test_cookies():
+    async with async_playwright() as p:
+        browser = await p.webkit.launch()
+        context = await browser.new_context()
+        page = await context.new_page()
+        
+        # Добавьте куки
+        await context.add_cookies([
+            {
+                'name': 'user_id',
+                'value': '123456',
+                'url': 'https://example.com',
+            }
+        ])
+        
+        # Перейдите на сайт
+        await page.goto('https://example.com')
+        
+        # Получите все куки
+        cookies = await context.cookies()
+        
+        # Сохраните куки
+        with open('config/cookies.json', 'w') as f:
+            json.dump(cookies, f, indent=2)
+        
+        print(f"✅ Куки сохранены: {len(cookies)} шт.")
+        
+        await context.close()
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(test_cookies())
+_______________________________________________________________________________________________
+8. Быстрые команды
+
+# Вход в контейнер
+docker-compose exec playwright-safari bash
+
+# Запуск одного теста
+docker-compose exec playwright-safari python tests/test_basic.py
+
+# Запуск всех тестов с pytest
+docker-compose exec playwright-safari pytest tests/ -v -s
+
+# Просмотр скриншотов
+docker-compose exec playwright-safari ls -la screenshots/
+
+# Просмотр логов
+docker-compose logs -f playwright-safari
+
+# Остановка контейнера
+docker-compose stop
+
+# Удаление контейнера
+docker-compose down
+
+# Перезагрузка контейнера
+docker-compose restart
+
+# Очистка всех данных
+docker-compose down -v
+_______________________________________________________________________________________________
+
+WebKit/Playwright эмуляция Safari:
+
+✅ Точная - использует реальный Safari engine
+✅ Бесплатная - open-source
+✅ Кроссплатформенная - работает на Linux, Mac, Windows
+✅ Простая - легко писать и запускать тесты
+⚠️ Не 100% Safari - некоторые нативные функции недоступны
+Это лучший вариант для тестирования сайтов на Safari без реального Mac!

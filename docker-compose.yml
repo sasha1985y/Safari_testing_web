@@ -14,11 +14,11 @@ services:
     tty: true
     
     ports:
+      - "5901:5901"
       - "8080:8080"
-      - "3000:3000"
     
     environment:
-      - DISPLAY=:99
+      - DISPLAY=:1
       - PLAYWRIGHT_BROWSER=webkit
     
     restart: unless-stopped

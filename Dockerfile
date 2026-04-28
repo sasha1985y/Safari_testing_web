@@ -4,9 +4,9 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-dev \
     xvfb \
-    x11-utils \
+    tigervnc-standalone-server \
     fluxbox \
-    libxkbcommon-x11-0 \
+    xterm \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -14,8 +14,25 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     playwright install webkit && \
     playwright install-deps webkit
 
+# Создайте VNC конфиг С паролем
+RUN mkdir -p ~/.vnc && \
+    echo "#!/bin/bash" > ~/.vnc/xstartup && \
+    echo "fluxbox &" >> ~/.vnc/xstartup && \
+    chmod +x ~/.vnc/xstartup
+
+# Установите пароль VNC (пароль: playwright)
+RUN echo "playwright" | vncpasswd -f > ~/.vnc/passwd && \
+    chmod 600 ~/.vnc/passwd
+
 WORKDIR /app
 
-# Запустите Xvfb и bash
-ENTRYPOINT ["bash", "-c"]
-CMD ["Xvfb :99 -screen 0 1920x1080x24 & export DISPLAY=:99 && /bin/bash"]
+# Запустите VNC с паролем
+CMD ["bash", "-c", "\
+    echo '🚀 Запуск VNC сервера...' && \
+    vncserver -kill :1 2>/dev/null || true && \
+    sleep 1 && \
+    vncserver -geometry 1920x1080 -depth 24 -localhost no :1 && \
+    echo '✅ VNC запущен на localhost:5901' && \
+    echo '🔐 Пароль: playwright' && \
+    tail -f /dev/null \
+"]

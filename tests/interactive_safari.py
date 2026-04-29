@@ -7,7 +7,7 @@ async def interactive_safari():
         browser = await p.webkit.launch(headless=False)
         
         page = await browser.new_page()
-        await page.goto('https://sasha1985y.github.io/Resume_Kuyantsev_Alexander_Dev/')
+        await page.goto('https://sasha1985y.github.io/Y-test/#tournament')
         
         # Браузер останется открыт, пока вы не закроете его
         # Вы можете взаимодействовать с ним вручную

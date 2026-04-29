@@ -57,3 +57,4 @@ part-00000-tid-860771939793626614-979f966a-6d53-4896-9692-f81194d27b99-109986-1-
 .env
 .venv
 /test_case
+/node_modules

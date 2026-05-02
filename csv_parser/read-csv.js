@@ -2,29 +2,29 @@ const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
 
-function Tmp(Номер, Браузер, Разрешение, Проблема, Описание) {
+function Tmp(Номер, Аспект, Требование_ТЗ, Текущий_макет, Критичность) {
   this.N = Номер;
-  this.Браузер = Браузер;
-  this.Разрешение = Разрешение;
-  this.Проблема = Проблема;
-  this.Описание = Описание;
+  this.Аспект = Аспект;
+  this.Требование_ТЗ = Требование_ТЗ;
+  this.Текущий_макет = Текущий_макет;
+  this.Критичность = Критичность;
 }
 
 const results = [];
 
-fs.createReadStream(path.join(__dirname, 'test-data.csv'))
+fs.createReadStream(path.join(__dirname, 'table_косяков.csv'))
   .pipe(csv({
-    separator: ',',
+    separator: ';',
     mapHeaders: ({ header }) => header.trim(),
     mapValues: ({ value }) => value.trim()
   }))
   .on('data', (row) => {
     results.push(new Tmp(
       row.Номер,
-      row.Браузер,
-      row.Разрешение,
-      row.Проблема,
-      row.Описание
+      row.Аспект,
+      row.Требование_ТЗ,
+      row.Текущий_макет,
+      row.Критичность
     ));
   })
   .on('end', () => {
